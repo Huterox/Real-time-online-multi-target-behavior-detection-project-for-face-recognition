@@ -30,6 +30,8 @@ class PoseRec(object):
         # 是否要一直实时开启读取摄像头
         self.going = True
         # 临时存储视频的路径
+        # 数据处理完毕
+        self.finish_process = False
         self.read_camera_videos = Queue(DECTION_CONFIG.max_queue_size)
         # 存在临时视频
         self.exitTempStreamVideo = False
@@ -187,7 +189,6 @@ class PoseRec(object):
                         imgs = []
                         count=0
                         self.exitTempStreamVideo = True
-                        print("第",split_count,"个视频切分完毕")
                         # 如果没有消耗掉，这里会进行一个等待，阻塞
                         self.read_camera_videos.put(vide_save_path)
                     key = cv2.waitKey(wait_time)
@@ -196,10 +197,11 @@ class PoseRec(object):
                 return
             except Exception as e:
                 self.going = False
+                print(e)
                 return
             finally:
                 camera.release()
-                print("摄像头终止释放")
+                print("摄像头终止并释放")
                 return
 
         """
@@ -218,8 +220,9 @@ class PoseRec(object):
 
             while(1):
 
-                if(self.going and not self.read_camera_videos.empty()):
+                if(not self.going and self.read_camera_videos.empty()):
                     print("---计算完毕---")
+                    self.finish_process = True
                     return
 
                 # 加载识别类型
@@ -231,6 +234,7 @@ class PoseRec(object):
                 vide_path = self.read_camera_videos.get()
                 # pytorch提供的动作识别器,就是因为这个所以我们还需要存储一下视频文件
                 # 虽然会消耗IO的时间,但是这玩意有对视频的优化
+
                 video = pytorchvideo.data.encoded_video.EncodedVideo.from_path(vide_path)
                 # 这里还是和先前一样
                 img_path = DECTION_CONFIG.streamTempBaseChannel + "/" + CameraName + "/01"
@@ -309,7 +313,7 @@ class PoseRec(object):
         def visulize_readTime(CameraName,show=False,process=None):
 
             while(1):
-                if(not self.going and self.read_process_data.empty()):
+                if(self.finish_process and self.read_process_data.empty()):
                     print("---计算处理完毕---")
                     break
                 data = self.read_process_data.get()
